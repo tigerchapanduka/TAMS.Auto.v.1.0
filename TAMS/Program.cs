@@ -16,7 +16,9 @@ namespace TAMS
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new Form1());
+            MainFom mainForm = new MainFom();
+            Application.Run(mainForm);
+            
         }
     }
 }
