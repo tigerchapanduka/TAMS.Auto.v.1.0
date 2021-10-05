@@ -49,7 +49,7 @@ namespace TAMS
             
             this.Controls.Add(tblLayoutPnl);
             importFileAsync();
-            Environment.Exit(-1);
+            //Environment.Exit(-1);
                     
 
         }

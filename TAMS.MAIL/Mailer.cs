@@ -57,23 +57,33 @@ namespace TAMS.MAIL
 
         public static void SendMessage(StringBuilder emailString)
         {
-            MailMessage message = new MailMessage();
-            message.From = new MailAddress(ConfigurationManager.AppSettings["gmailaddress"]);
-            message.To.Add(ConfigurationManager.AppSettings["gmailaddress"]);
-            message.IsBodyHtml = true;
-            message.Subject = "TAMS Quickbooks Import Exception";
-            message.Body = emailString.ToString();
+            try
+            {
+                MailMessage message = new MailMessage();
+                message.From = new MailAddress(ConfigurationManager.AppSettings["gmailaddress"]);
+                message.To.Add(ConfigurationManager.AppSettings["gmailaddress"]);
+                message.IsBodyHtml = true;
+                message.Subject = "TAMS Quickbooks Import Exception";
+                message.Body = emailString.ToString();
 
-            SmtpClient client = new SmtpClient();
-            client.Host = ConfigurationManager.AppSettings["smtphost"];
-            client.Port = Convert.ToInt32(ConfigurationManager.AppSettings["smtpport"]);
-            client.EnableSsl = true;
-            string user = ConfigurationManager.AppSettings["gmailaddress"];
-            string pswd = ConfigurationManager.AppSettings["gmailpassword"];
-            client.UseDefaultCredentials = false;
-            client.Credentials = new System.Net.NetworkCredential(user, pswd);
+                SmtpClient client = new SmtpClient();
+                client.Host = ConfigurationManager.AppSettings["smtphost"];
+                client.Port = Convert.ToInt32(ConfigurationManager.AppSettings["smtpport"]);
+                client.EnableSsl = true;
+                string user = ConfigurationManager.AppSettings["gmailaddress"];
+                string pswd = ConfigurationManager.AppSettings["gmailpassword"];
+                client.UseDefaultCredentials = false;
+                client.Credentials = new System.Net.NetworkCredential(user, pswd);
 
-            client.Send(message);
+                client.Send(message);
+
+            } catch (Exception ex)
+            { 
+            
+            
+            }
+            finally { 
+            }
         }
     }
 }

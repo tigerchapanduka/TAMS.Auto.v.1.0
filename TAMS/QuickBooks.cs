@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -33,7 +34,7 @@ namespace TAMS
 
             try {
 
-                File.AppendAllText("log.txt", " Importing orders "+DateTime.Now.ToString());
+               // File.AppendAllText("log.txt", " Importing orders "+DateTime.Now.ToString());
                 return  CreateSalesOrder( ordersCollection);
                 
             }
@@ -77,7 +78,7 @@ namespace TAMS
 
             requestSet.Attributes.OnError = ENRqOnError.roeContinue;
             ISalesOrderQuery SalesOrderQueryRq = requestSet.AppendSalesOrderQueryRq();
-            //SalesOrderQueryRq.ORTxnNoAccountQuery.
+            //SalesOrderQueryRq.
             SalesOrderQueryRq.ORTxnNoAccountQuery.RefNumberList.Add(refnum);
              
             IMsgSetResponse responseSet = iQb.GetSessionManager().DoRequests(requestSet);
@@ -135,322 +136,325 @@ namespace TAMS
 
         private List<Order> CreateSalesOrder( List<Order> ls)
         {
+
+            Int64 lastOrderNumber = Convert.ToInt64( ConfigurationManager.AppSettings["LastOrderNumber"]) ;
             try
             {
                 List<Order> importedOrders = new List<Order>();
 
                 foreach (Order order in ls)
                 {
-                    if (order.order_number=="6099")
+                    if (Convert.ToInt64( order.order_number) > lastOrderNumber)
                     {
-                        Console.WriteLine();
-                    }
 
-                    bool exists = searchForSalesOrder(order.order_number+"S" + DateTime.Now.Year.ToString());
-                    Customer cust = new Customer(qbFile, appName);
-                    List<string> customerList = cust.GetItems(order.Customer.first_name + " " + order.Customer.last_name);
+                        bool exists = searchForSalesOrder(order.order_number + "S" + DateTime.Now.Year.ToString());
+                        Customer cust = new Customer(qbFile, appName);
+                        List<string> customerList = cust.GetItems(order.Customer.first_name + " " + order.Customer.last_name);
 
-                    string customer = "";
+                        string customer = "";
 
-                    if (customerList.Count == 0)
-                    {
-                        int qbResponseCode = cust.CreateCustomer(order);
-                        if (qbResponseCode == 0 || qbResponseCode == 3100)
+                        if (customerList.Count == 0)
                         {
-                            customer = order.Customer.first_name + " " + order.Customer.last_name;
+                            int qbResponseCode = cust.CreateCustomer(order);
+                            if (qbResponseCode == 0 || qbResponseCode == 3100)
+                            {
+                                customer = order.Customer.first_name + " " + order.Customer.last_name;
+                            }
+
+                        }
+                        else
+                        {
+                            customer = customerList[0];
+
                         }
 
-                    }
-                    else
-                    {
-                        customer = customerList[0];
-
-                    }
-
-                    if (!exists)
-                    {
-               
-                        Class qbClass = new Class(qbFile, appName);
-                        string qbclass = qbClass.GetItems("Stockist - Online Store")[0];
-
-
-                        iQb = new QBSession(qbFile, appName);
-
-                        IMsgSetRequest requestSet = iQb.getLatestMsgSetRequest();
-                        ISalesOrderAdd salesOrderAdd = requestSet.AppendSalesOrderAddRq();
-
-                        requestSet.Attributes.OnError = ENRqOnError.roeContinue;
-
-                        if (!string.IsNullOrEmpty(customer))
+                        if (!exists)
                         {
 
-                            salesOrderAdd.TxnDate.SetValue(Convert.ToDateTime(DateTime.Now));
-                            salesOrderAdd.CustomerRef.FullName.SetValue(customer);
-                            salesOrderAdd.RefNumber.SetValue(order.order_number + "S"+DateTime.Now.Year.ToString());
-                            salesOrderAdd.IsTaxIncluded.SetValue(true);
-                            salesOrderAdd.IsToBeEmailed.SetValue(false);
-                            salesOrderAdd.IsToBePrinted.SetValue(false);
-                            salesOrderAdd.DueDate.SetValue(DateTime.Now);
-                            salesOrderAdd.TermsRef.FullName.SetValue("Due on receipt");
-                            salesOrderAdd.ShipDate.SetValue(DateTime.Now);
+                            Class qbClass = new Class(qbFile, appName);
+                            string qbclass = qbClass.GetItems("Stockist - Online Store")[0];
 
-                            salesOrderAdd.ClassRef.FullName.SetValue(qbclass);
-                            string notes = "";
-                            foreach (Note note in order.note_attributes)
-                            {
-                                notes = notes + " " + note.name + " " + note.value;
-                            }
 
-                            salesOrderAdd.Memo.SetValue(notes);
+                            iQb = new QBSession(qbFile, appName);
 
-                            string excessAddress = "";
-                            string prependedAddress = "";
+                            IMsgSetRequest requestSet = iQb.getLatestMsgSetRequest();
+                            ISalesOrderAdd salesOrderAdd = requestSet.AppendSalesOrderAddRq();
 
-                            if (!string.IsNullOrEmpty(order.BillingStreet))
-                            {
-                                if (order.BillingStreet.Length > 40)
-                                {
-                                    salesOrderAdd.BillAddress.Addr1.SetValue(order.billing_address.address1.Substring(0, 40));
-                                    excessAddress = order.billing_address.address1.Substring(41);
-                                }
-                                else
-                                {
-                                    salesOrderAdd.BillAddress.Addr1.SetValue(order.billing_address.address1);
-                                }
-                            }
+                            requestSet.Attributes.OnError = ENRqOnError.roeContinue;
 
-                            prependedAddress = excessAddress + " " + order.billing_address.address2;
-                            if (!string.IsNullOrEmpty(prependedAddress.Trim()))
+                            if (!string.IsNullOrEmpty(customer))
                             {
 
-                                if (prependedAddress.Length > 40)
-                                {
-                                    salesOrderAdd.BillAddress.Addr2.SetValue(prependedAddress.Substring(0, 40));
-                                    excessAddress = prependedAddress.Substring(41);
-                                }
-                                else
-                                {
-                                    salesOrderAdd.BillAddress.Addr2.SetValue(prependedAddress);
-                                }
+                                salesOrderAdd.TxnDate.SetValue(Convert.ToDateTime(DateTime.Now));
+                                salesOrderAdd.CustomerRef.FullName.SetValue(customer);
+                                salesOrderAdd.RefNumber.SetValue(order.order_number + "S" + DateTime.Now.Year.ToString());
+                                salesOrderAdd.PONumber.SetValue(order.order_number + "S" + DateTime.Now.Year.ToString());
+                                salesOrderAdd.IsTaxIncluded.SetValue(true);
+                                salesOrderAdd.IsToBeEmailed.SetValue(false);
+                                salesOrderAdd.IsToBePrinted.SetValue(false);
+                                salesOrderAdd.DueDate.SetValue(DateTime.Now);
+                                salesOrderAdd.TermsRef.FullName.SetValue("Due on receipt");
+                                salesOrderAdd.ShipDate.SetValue(DateTime.Now);
 
-                            }
-
-                            prependedAddress = excessAddress + " " + order.billing_address.address2;
-                            if (!string.IsNullOrEmpty(prependedAddress.Trim()))
-                            {
-
-                                if (prependedAddress.Length > 40)
+                                salesOrderAdd.ClassRef.FullName.SetValue(qbclass);
+                                string notes = "";
+                                foreach (Note note in order.note_attributes)
                                 {
-                                    salesOrderAdd.BillAddress.Addr3.SetValue(prependedAddress.Substring(0, 40));
-                                    excessAddress = prependedAddress.Substring(41);
-                                }
-                                else
-                                {
-                                    salesOrderAdd.BillAddress.Addr3.SetValue(prependedAddress);
+                                    notes = notes + " " + note.name + " " + note.value;
                                 }
 
-                            }
+                                salesOrderAdd.Memo.SetValue(notes);
 
-                            salesOrderAdd.BillAddress.City.SetValue(order.billing_address.city);
-                            salesOrderAdd.BillAddress.State.SetValue(order.billing_address.province);
-                            salesOrderAdd.BillAddress.Country.SetValue(order.billing_address.country);
-                            salesOrderAdd.BillAddress.PostalCode.SetValue(order.billing_address.zip);
+                                string excessAddress = "";
+                                string prependedAddress = "";
 
-                            excessAddress = "";
-
-                            if (!string.IsNullOrEmpty(order.shipping_address.address1))
-                            {
-                                if (order.shipping_address.address1.Length > 40)
+                                if (!string.IsNullOrEmpty(order.BillingStreet))
                                 {
-                                    salesOrderAdd.ShipAddress.Addr1.SetValue(order.shipping_address.address1.Substring(0, 40));
-                                    excessAddress = order.shipping_address.address1.Substring(41);
-                                }
-                                else
-                                {
-                                    salesOrderAdd.ShipAddress.Addr1.SetValue(order.shipping_address.address1);
-                                }
-                            }
-
-
-
-                            prependedAddress = excessAddress + " " + order.shipping_address.address1;
-                            if (!string.IsNullOrEmpty(prependedAddress.Trim()))
-                            {
-
-                                if (prependedAddress.Length > 40)
-                                {
-                                    salesOrderAdd.ShipAddress.Addr2.SetValue(prependedAddress.Substring(0, 40));
-                                    excessAddress = prependedAddress.Substring(41);
-                                }
-                                else
-                                {
-                                    salesOrderAdd.ShipAddress.Addr2.SetValue(prependedAddress);
+                                    if (order.BillingStreet.Length > 40)
+                                    {
+                                        salesOrderAdd.BillAddress.Addr1.SetValue(order.billing_address.address1.Substring(0, 40));
+                                        excessAddress = order.billing_address.address1.Substring(41);
+                                    }
+                                    else
+                                    {
+                                        salesOrderAdd.BillAddress.Addr1.SetValue(order.billing_address.address1);
+                                    }
                                 }
 
-                            }
-
-                            prependedAddress = excessAddress + " " + order.shipping_address.address2;
-                            if (!string.IsNullOrEmpty(prependedAddress.Trim()))
-                            {
-
-                                if (prependedAddress.Length > 40)
+                                prependedAddress = excessAddress + " " + order.billing_address.address2;
+                                if (!string.IsNullOrEmpty(prependedAddress.Trim()))
                                 {
-                                    salesOrderAdd.ShipAddress.Addr3.SetValue(prependedAddress.Substring(0, 40));
-                                    excessAddress = prependedAddress.Substring(41);
+
+                                    if (prependedAddress.Length > 40)
+                                    {
+                                        salesOrderAdd.BillAddress.Addr2.SetValue(prependedAddress.Substring(0, 40));
+                                        excessAddress = prependedAddress.Substring(41);
+                                    }
+                                    else
+                                    {
+                                        salesOrderAdd.BillAddress.Addr2.SetValue(prependedAddress);
+                                    }
+
                                 }
-                                else
+
+                                prependedAddress = excessAddress + " " + order.billing_address.address2;
+                                if (!string.IsNullOrEmpty(prependedAddress.Trim()))
                                 {
-                                    salesOrderAdd.ShipAddress.Addr3.SetValue(prependedAddress);
+
+                                    if (prependedAddress.Length > 40)
+                                    {
+                                        salesOrderAdd.BillAddress.Addr3.SetValue(prependedAddress.Substring(0, 40));
+                                        excessAddress = prependedAddress.Substring(41);
+                                    }
+                                    else
+                                    {
+                                        salesOrderAdd.BillAddress.Addr3.SetValue(prependedAddress);
+                                    }
+
                                 }
 
-                            }
+                                salesOrderAdd.BillAddress.City.SetValue(order.billing_address.city);
+                                salesOrderAdd.BillAddress.State.SetValue(order.billing_address.province);
+                                salesOrderAdd.BillAddress.Country.SetValue(order.billing_address.country);
+                                salesOrderAdd.BillAddress.PostalCode.SetValue(order.billing_address.zip);
 
-                            salesOrderAdd.ShipAddress.City.SetValue(order.shipping_address.city);
-                            salesOrderAdd.ShipAddress.State.SetValue(order.shipping_address.province);
-                            salesOrderAdd.ShipAddress.Country.SetValue(order.shipping_address.country);
-                            salesOrderAdd.ShipAddress.PostalCode.SetValue(order.shipping_address.zip);
+                                excessAddress = "";
 
-                            int countOrderWithValidItemCode = 0;
+                                if (!string.IsNullOrEmpty(order.shipping_address.address1))
+                                {
+                                    if (order.shipping_address.address1.Length > 40)
+                                    {
+                                        salesOrderAdd.ShipAddress.Addr1.SetValue(order.shipping_address.address1.Substring(0, 40));
+                                        excessAddress = order.shipping_address.address1.Substring(41);
+                                    }
+                                    else
+                                    {
+                                        salesOrderAdd.ShipAddress.Addr1.SetValue(order.shipping_address.address1);
+                                    }
+                                }
 
-                            /*
-                            string itemCode = getItemCode(order.LineItemSKU);
-                            if (!string.IsNullOrEmpty(itemCode))
-                            {
-                                ISalesOrderLineAdd salesOrderLineAdd = salesOrderAdd.ORSalesOrderLineAddList.Append().SalesOrderLineAdd;
-                                salesOrderLineAdd.ItemRef.FullName.SetValue(itemCode);
-                                salesOrderLineAdd.Quantity.SetValue(order.LineItemQuantity);
-                                salesOrderLineAdd.ClassRef.FullName.SetValue(qbclass);
-                                salesOrderLineAdd.Amount.SetValue(order.LineItemPrice);
-                                order.Imported = true;
-                                countOrderWithValidItemCode += 1;
-                            }
-                            else
-                            {
-                                order.ImportException = "Item code does not exist";
-                                order.Imported = false;
-                            }
-                            */
-                            foreach (LineItem childOrder in order.line_items)
-                            {
-                                string childItemCode = getItemCode(childOrder.sku);
-                                if (!string.IsNullOrEmpty(childItemCode))
+
+
+                                prependedAddress = excessAddress + " " + order.shipping_address.address2;
+                                if (!string.IsNullOrEmpty(prependedAddress.Trim()))
+                                {
+
+                                    if (prependedAddress.Length > 40)
+                                    {
+                                        salesOrderAdd.ShipAddress.Addr2.SetValue(prependedAddress.Substring(0, 40));
+                                        excessAddress = prependedAddress.Substring(41);
+                                    }
+                                    else
+                                    {
+                                        salesOrderAdd.ShipAddress.Addr2.SetValue(prependedAddress);
+                                    }
+
+                                }
+
+                                
+                                if (!string.IsNullOrEmpty(excessAddress.Trim()))
+                                {
+
+                                    if (excessAddress.Length > 40)
+                                    {
+                                        salesOrderAdd.ShipAddress.Addr3.SetValue(excessAddress.Substring(0, 40));
+                                        excessAddress = prependedAddress.Substring(41);
+                                    }
+                                    else
+                                    {
+                                        salesOrderAdd.ShipAddress.Addr3.SetValue(excessAddress);
+                                    }
+
+                                }
+
+                                salesOrderAdd.ShipAddress.City.SetValue(order.shipping_address.city);
+                                salesOrderAdd.ShipAddress.State.SetValue(order.shipping_address.province);
+                                salesOrderAdd.ShipAddress.Country.SetValue(order.shipping_address.country);
+                                salesOrderAdd.ShipAddress.PostalCode.SetValue(order.shipping_address.zip);
+
+                                int countOrderWithValidItemCode = 0;
+
+                                /*
+                                string itemCode = getItemCode(order.LineItemSKU);
+                                if (!string.IsNullOrEmpty(itemCode))
                                 {
                                     ISalesOrderLineAdd salesOrderLineAdd = salesOrderAdd.ORSalesOrderLineAddList.Append().SalesOrderLineAdd;
-                                    salesOrderLineAdd.ItemRef.FullName.SetValue(childItemCode);
-                                    salesOrderLineAdd.Quantity.SetValue(Convert.ToDouble(childOrder.quantity));
+                                    salesOrderLineAdd.ItemRef.FullName.SetValue(itemCode);
+                                    salesOrderLineAdd.Quantity.SetValue(order.LineItemQuantity);
                                     salesOrderLineAdd.ClassRef.FullName.SetValue(qbclass);
-                                    salesOrderLineAdd.Amount.SetValue(childOrder.price);
-                                    StringBuilder notesBuilder = new StringBuilder();
-                                    foreach (Note note in childOrder.properties)
-                                    {
-                                        notesBuilder.AppendLine(note.ToString()); 
-                                    }
-                                    salesOrderLineAdd.Desc.SetValue(notesBuilder.ToString());
-                                    childOrder.Imported = true;
+                                    salesOrderLineAdd.Amount.SetValue(order.LineItemPrice);
+                                    order.Imported = true;
                                     countOrderWithValidItemCode += 1;
                                 }
                                 else
                                 {
-                                    childOrder.ImportException = "Item code does not exist";
-                                    childOrder.Imported = false;
+                                    order.ImportException = "Item code does not exist";
+                                    order.Imported = false;
                                 }
-                            }
-
-
-                            if (Convert.ToDouble(order.total_discounts_set.shop_money.amount) > 0)
-                            {
-                                ISalesOrderLineAdd salesOrderLineAddDiscount = salesOrderAdd.ORSalesOrderLineAddList.Append().SalesOrderLineAdd;
-                                //QB Item code
-                                salesOrderLineAddDiscount.ItemRef.FullName.SetValue("Sales Discounts");
-                                //salesOrderLineAddDiscount.Quantity.SetValue(1);
-                                salesOrderLineAddDiscount.ClassRef.FullName.SetValue(qbclass);
-                                salesOrderLineAddDiscount.Amount.SetValue(Convert.ToDouble(order.total_discounts_set.shop_money.amount));
-
-                            }
-
-                            if (Convert.ToDouble(order.total_shipping_price_set.shop_money.amount) > 0)
-                            {
-                                ISalesOrderLineAdd salesOrderLineAddShppingAmount = salesOrderAdd.ORSalesOrderLineAddList.Append().SalesOrderLineAdd;
-                                salesOrderLineAddShppingAmount.ItemRef.FullName.SetValue("Delivery & Transport");
-                                //salesOrderLineAddShppingAmount.Quantity.SetValue(1);
-                                salesOrderLineAddShppingAmount.ClassRef.FullName.SetValue(qbclass);
-                                salesOrderLineAddShppingAmount.Amount.SetValue(Convert.ToDouble(order.total_shipping_price_set.shop_money.amount));
-                            }
-
-                            //TO DO Check item codes exist before importing
-
-
-                            //string requestXML = requestSet.ToXMLString();
-                            try
-                            {
-                                if (countOrderWithValidItemCode > 0)
+                                */
+                                foreach (LineItem childOrder in order.line_items)
                                 {
-                                    IMsgSetResponse responseSet = iQb.GetSessionManager().DoRequests(requestSet);
-
-                                    IResponse response = responseSet.ResponseList.GetAt(0);
-
-                                    string responseStatusMessage = response.StatusMessage;
-
-                                    int statusCode = response.StatusCode;
-
-                                    if (statusCode == 0)
+                                    string childItemCode = getItemCode(childOrder.sku);
+                                    if (!string.IsNullOrEmpty(childItemCode))
                                     {
-
-                                        ISalesOrderRet soDetail = (ISalesOrderRet)response.Detail;
-                                        string transactionID = soDetail.TxnID.GetValue();
-                                        order.Imported = true;
-
+                                        ISalesOrderLineAdd salesOrderLineAdd = salesOrderAdd.ORSalesOrderLineAddList.Append().SalesOrderLineAdd;
+                                        salesOrderLineAdd.ItemRef.FullName.SetValue(childItemCode);
+                                        salesOrderLineAdd.Quantity.SetValue(Convert.ToDouble(childOrder.quantity));
+                                        salesOrderLineAdd.ClassRef.FullName.SetValue(qbclass);
+                                        salesOrderLineAdd.Amount.SetValue(childOrder.price);
+                                        StringBuilder notesBuilder = new StringBuilder();
+                                        foreach (Note note in childOrder.properties)
+                                        {
+                                            notesBuilder.AppendLine(note.ToString());
+                                        }
+                                        salesOrderLineAdd.Desc.SetValue(notesBuilder.ToString());
+                                        childOrder.Imported = true;
+                                        countOrderWithValidItemCode += 1;
                                     }
                                     else
                                     {
-                                        order.ImportException = responseStatusMessage;
+                                        childOrder.ImportException = "Item code does not exist";
+                                        childOrder.Imported = false;
                                     }
                                 }
-                                else
+
+
+                                if (Convert.ToDouble(order.total_discounts_set.shop_money.amount) > 0)
                                 {
-                                    
-                                    order.ImportException = "Line items do not have valid sku code";
+                                    ISalesOrderLineAdd salesOrderLineAddDiscount = salesOrderAdd.ORSalesOrderLineAddList.Append().SalesOrderLineAdd;
+                                    //QB Item code
+                                    salesOrderLineAddDiscount.ItemRef.FullName.SetValue("Sales Discounts");
+                                    //salesOrderLineAddDiscount.Quantity.SetValue(1);
+                                    salesOrderLineAddDiscount.ClassRef.FullName.SetValue(qbclass);
+                                    salesOrderLineAddDiscount.Amount.SetValue(Convert.ToDouble(order.total_discounts_set.shop_money.amount));
+
+                                }
+
+                                if (Convert.ToDouble(order.total_shipping_price_set.shop_money.amount) > 0)
+                                {
+                                    ISalesOrderLineAdd salesOrderLineAddShppingAmount = salesOrderAdd.ORSalesOrderLineAddList.Append().SalesOrderLineAdd;
+                                    salesOrderLineAddShppingAmount.ItemRef.FullName.SetValue("Delivery & Transport");
+                                    //salesOrderLineAddShppingAmount.Quantity.SetValue(1);
+                                    salesOrderLineAddShppingAmount.ClassRef.FullName.SetValue(qbclass);
+                                    salesOrderLineAddShppingAmount.Amount.SetValue(Convert.ToDouble(order.total_shipping_price_set.shop_money.amount));
+                                }
+
+                                //TO DO Check item codes exist before importing
+
+
+                                //string requestXML = requestSet.ToXMLString();
+                                try
+                                {
+                                    if (countOrderWithValidItemCode > 0)
+                                    {
+                                        IMsgSetResponse responseSet = iQb.GetSessionManager().DoRequests(requestSet);
+
+                                        IResponse response = responseSet.ResponseList.GetAt(0);
+
+                                        string responseStatusMessage = response.StatusMessage;
+
+                                        int statusCode = response.StatusCode;
+
+                                        if (statusCode == 0)
+                                        {
+
+                                            ISalesOrderRet soDetail = (ISalesOrderRet)response.Detail;
+                                            string transactionID = soDetail.TxnID.GetValue();
+                                            order.Imported = true;
+
+                                        }
+                                        else
+                                        {
+                                            order.ImportException = responseStatusMessage;
+                                        }
+                                    }
+                                    else
+                                    {
+
+                                        order.ImportException = "Line items do not have valid sku code";
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    order.Imported = false;
+                                    order.ImportException = ex.Message;
+                                    //MessageBox.Show(ex.Message);
+                                }
+                                finally
+                                {
+                                    //if (iQb != null)
+                                    {
+                                        //    iQb.CloseSession();
+                                    }
                                 }
                             }
-                            catch (Exception ex)
+                            else
                             {
                                 order.Imported = false;
-                                order.ImportException = ex.Message;
-                                //MessageBox.Show(ex.Message);
+                                order.ImportException = "Customer could not be created";
                             }
-                            finally
-                            {
-                                //if (iQb != null)
-                                {
-                                    //    iQb.CloseSession();
-                                }
-                            }
+
+
                         }
                         else
                         {
-                            order.Imported = false;
-                            order.ImportException = "Customer could not be created";
-                        }
 
-
-                    }
-                    else {
-
-                        foreach (LineItem childOrder in order.line_items)
-                        {
-                            string childItemCode = getItemCode(childOrder.sku);
-                            if (string.IsNullOrEmpty(childItemCode))
+                            foreach (LineItem childOrder in order.line_items)
                             {
-                                childOrder.ImportException = "Item code does not exist";
-                                childOrder.Imported = false;
-                                order.ImportException = order.ImportException + "Item code does not exist ";
-                            }
-                          
-                        }
-                        order.AlreadyImported = true;
-                    }
-                    importedOrders.Add(order);
+                                string childItemCode = getItemCode(childOrder.sku);
+                                if (string.IsNullOrEmpty(childItemCode))
+                                {
+                                    childOrder.ImportException = "Item code does not exist";
+                                    childOrder.Imported = false;
+                                    order.ImportException = order.ImportException + "Item code does not exist ";
+                                }
 
+                            }
+                            order.AlreadyImported = true;
+                        }
+                        importedOrders.Add(order);
+
+                    }
                 }
                 return importedOrders;
             }
